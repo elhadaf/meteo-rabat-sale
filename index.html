@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Météo du jour et prévisions sur 14 jours pour Rabat‑Salé, mises à jour automatiquement.">
+<title>Météo Rabat‑Salé</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one column; a big "now" panel over the Bouregreg, then today's 24h curve, then the 14-day strip on a shared temperature scale */
+:root{
+  --bg:#f3f5f4; --surface:#ffffff; --ink:#10243a; --muted:#5b6b7a; --line:#d9e1e4;
+  --ocean:#0f5c7a; --ocean-soft:#dcebf0; --sun:#d98a1f; --sun-soft:#f8e7cc; --rain:#3b7fc4;
+  --display:"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0b1620; --surface:#122230; --ink:#e7eef2; --muted:#93a4b2; --line:#22384a;
+  --ocean:#5fb3d3; --ocean-soft:#16364a; --sun:#f0a943; --sun-soft:#3a2c14; --rain:#6aa8e8; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0b1620; --surface:#122230; --ink:#e7eef2; --muted:#93a4b2; --line:#22384a;
+  --ocean:#5fb3d3; --ocean-soft:#16364a; --sun:#f0a943; --sun-soft:#3a2c14; --rain:#6aa8e8; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+h1,h2{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:19px;font-weight:700}
+
+header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+header.top h1{font-size:26px;font-weight:700}
+.coords{color:var(--muted);font-size:13px}
+.stamp{font-size:12.5px;color:var(--muted);text-align:right}
+.stamp.stale{color:var(--sun)}
+
+.now{background:var(--ocean);color:#f4fafc;border-radius:18px;padding:22px 22px 18px;display:grid;
+  grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:18px 28px;position:relative;overflow:hidden}
+.now::after{content:"";position:absolute;inset:auto -10% -38px -10%;height:70px;opacity:.18;
+  background:repeating-radial-gradient(ellipse at 50% 0,transparent 0 14px,#fff 14px 16px)}
+.now .when{font-size:13px;opacity:.85}
+.big{display:flex;align-items:center;gap:14px;margin-top:6px}
+.big .t{font-family:var(--display);font-size:84px;line-height:.95;font-weight:700;letter-spacing:-.03em}
+.big .t sup{font-size:.38em;vertical-align:.95em;margin-left:2px;font-weight:500}
+.big svg{width:64px;height:64px;flex:none}
+.sky{font-size:17px;font-weight:500;margin-top:6px}
+.range{font-size:14px;opacity:.9}
+.facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px;align-content:center;position:relative;z-index:1}
+.fact .k{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;opacity:.75}
+.fact .v{font-family:var(--mono);font-size:17px;font-weight:500}
+
+section.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px}
+.card-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.legend{display:flex;gap:14px;font-size:12.5px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.chart-wrap{overflow-x:auto}
+svg.hourly{display:block;width:100%;min-width:560px;height:auto}
+svg.hourly text{font-family:var(--mono);font-size:11px;fill:var(--muted)}
+svg.hourly .tl{fill:var(--ink);font-weight:500}
+
+.days{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.day{display:grid;grid-template-columns:92px 30px minmax(0,1fr) 54px;align-items:center;gap:12px;padding:9px 2px;border-top:1px solid var(--line)}
+.day:first-child{border-top:0}
+.day .d b{display:block;font-weight:600;font-size:14.5px}
+.day .d span{font-size:12px;color:var(--muted)}
+.day svg{width:28px;height:28px}
+.bar-row{display:flex;align-items:center;gap:8px;min-width:0}
+.bar-row .lo,.bar-row .hi{font-family:var(--mono);font-size:13.5px;width:30px;flex:none}
+.bar-row .lo{color:var(--muted);text-align:right}
+.track{position:relative;height:8px;border-radius:4px;background:var(--ocean-soft);flex:1;min-width:0}
+.fill{position:absolute;top:0;bottom:0;border-radius:4px;background:linear-gradient(90deg,var(--ocean),var(--sun))}
+.day .rain{font-family:var(--mono);font-size:12.5px;color:var(--rain);text-align:right}
+.day .rain.dry{color:var(--muted)}
+.day .sub{grid-column:3 / 5;font-size:12px;color:var(--muted);margin-top:-4px}
+.day.today{background:var(--sun-soft);border-radius:10px;border-top-color:transparent}
+.day.today + .day{border-top-color:transparent}
+
+.empty{padding:28px 18px;text-align:center;color:var(--muted)}
+footer{font-size:12.5px;color:var(--muted)}
+footer a{color:var(--ocean)}
+
+@media (max-width:620px){
+  .now{grid-template-columns:minmax(0,1fr)}
+  .big .t{font-size:68px}
+  .day{grid-template-columns:70px 26px minmax(0,1fr) 44px;gap:8px}
+  .day .sub{grid-column:1 / 5;margin-top:0}
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Région Rabat‑Salé‑Kénitra</div>
+      <h1>Météo Rabat‑Salé</h1>
+      <div class="coords mono">34,02° N · 6,83° O · heure du Maroc</div>
+    </div>
+    <div class="stamp" id="stamp">Chargement des prévisions…</div>
+  </header>
+
+  <div id="app">
+    <section class="card empty" id="empty">
+      Les prévisions apparaîtront ici dès leur chargement. Elles se chargent en direct depuis le service météo.
+    </section>
+  </div>
+
+  <footer id="foot">Données : Open‑Meteo, chargées en direct.</footer>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const TZ = "Africa/Casablanca";
+const JOURS = ["dim.","lun.","mar.","mer.","jeu.","ven.","sam."];
+const MOIS = ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."];
+
+function nowParts(){
+  const f = new Intl.DateTimeFormat("en-CA",{timeZone:TZ,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",hour12:false});
+  const p = Object.fromEntries(f.formatToParts(new Date()).map(x=>[x.type,x.value]));
+  return {date:`${p.year}-${p.month}-${p.day}`, hour:parseInt(p.hour,10)%24};
+}
+function frDate(iso,long){
+  const [y,m,d] = iso.split("-").map(Number);
+  const dt = new Date(Date.UTC(y,m-1,d));
+  return long ? `${JOURS[dt.getUTCDay()]} ${d} ${MOIS[m-1]}` : {wd:JOURS[dt.getUTCDay()], dm:`${d} ${MOIS[m-1]}`};
+}
+function kind(sky){
+  const s=(sky||"").toLowerCase();
+  if(/pluie|averse|orage|bruine|rain|shower/.test(s)) return "rain";
+  if(/partiel|éclaircie|partial/.test(s)) return "partly";
+  if(/couvert|nuageux|overcast|cloud/.test(s)) return "cloud";
+  return "clear";
+}
+function icon(k,onDark){
+  const sun = onDark ? "#ffd27a" : "var(--sun)";
+  const cl = onDark ? "#ffffff" : "var(--muted)";
+  const rn = onDark ? "#bfe3ff" : "var(--rain)";
+  const sunG = (cx,cy,r)=>`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${sun}"/>`+
+    [0,45,90,135,180,225,270,315].map(a=>{const t=a*Math.PI/180;return `<line x1="${cx+Math.cos(t)*(r+4)}" y1="${cy+Math.sin(t)*(r+4)}" x2="${cx+Math.cos(t)*(r+8)}" y2="${cy+Math.sin(t)*(r+8)}" stroke="${sun}" stroke-width="2.4" stroke-linecap="round"/>`}).join("");
+  const cloud = (x,y,s,fill,op)=>`<path transform="translate(${x} ${y}) scale(${s})" fill="${fill}" fill-opacity="${op}" d="M8 22h22a7 7 0 0 0 0-14 10 10 0 0 0-19-2A8 8 0 0 0 8 22z"/>`;
+  let g="";
+  if(k==="clear") g=sunG(24,24,9);
+  else if(k==="partly") g=sunG(18,18,7)+cloud(8,14,1,cl,1);
+  else if(k==="cloud") g=cloud(4,6,1.15,cl,1);
+  else g=cloud(4,2,1.15,cl,1)+[14,22,30].map(x=>`<line x1="${x}" y1="34" x2="${x-3}" y2="42" stroke="${rn}" stroke-width="2.4" stroke-linecap="round"/>`).join("");
+  return `<svg viewBox="0 0 48 48" aria-hidden="true">${g}</svg>`;
+}
+const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function render(data){
+  const {date:today, hour} = nowParts();
+  const days = Array.isArray(data.days)?data.days:[];
+  const hours = Array.isArray(data.hours)?data.hours:[];
+  const dIdx = Math.max(0, days.findIndex(d=>d.date===today));
+  const day = days[dIdx] || {};
+  const hoursToday = data.hoursDate===today ? hours : [];
+  const cur = hoursToday.find(h=>h.h===hour) || null;
+
+  // stamp
+  const st=$("#stamp");
+  const upd = data.updatedAt ? new Date(data.updatedAt) : null;
+  const updTxt = upd ? new Intl.DateTimeFormat("fr-FR",{timeZone:TZ,weekday:"long",day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"}).format(upd) : "—";
+  const stale = !days.some(d=>d.date===today);
+  st.textContent = `Actualisé ${updTxt}` + (stale?" · prévisions anciennes":"");
+  st.classList.toggle("stale",stale);
+  if(data.sourceUrl) $("#foot").innerHTML = `Données : <a href="${esc(data.sourceUrl)}" target="_blank" rel="noopener">${esc(data.source||"source")}</a>, chargées en direct à chaque ouverture.`;
+
+  const sky = cur?.sky || day.sky || "";
+  const temp = cur ? cur.t : day.max;
+  const nowHtml = `
+    <section class="now" aria-label="Conditions actuelles">
+      <div>
+        <div class="when">${cur?`Maintenant · ${String(hour).padStart(2,"0")} h`:"Aujourd’hui"} · ${frDate(day.date||today,true)}</div>
+        <div class="big">${icon(kind(sky),true)}<div class="t mono">${temp??"–"}<sup>°C</sup></div></div>
+        <div class="sky">${esc(sky)}</div>
+        <div class="range mono">Max ${day.max??"–"}° · Min ${day.min??"–"}°${cur&&cur.f!=null&&cur.f!==cur.t?` · ressenti ${cur.f}°`:""}</div>
+      </div>
+      <div class="facts">
+        <div class="fact"><div class="k">Vent</div><div class="v">${cur?.w??day.wind??"–"} km/h</div></div>
+        <div class="fact"><div class="k">Humidité</div><div class="v">${day.hum??"–"} %</div></div>
+        <div class="fact"><div class="k">Risque de pluie</div><div class="v">${cur?.r??day.rain??"–"} %</div></div>
+        <div class="fact"><div class="k">Indice UV</div><div class="v">${day.uv??"–"}</div></div>
+        <div class="fact"><div class="k">Lever du soleil</div><div class="v">${esc(day.sunrise||"–")}</div></div>
+        <div class="fact"><div class="k">Coucher</div><div class="v">${esc(day.sunset||"–")}</div></div>
+      </div>
+    </section>`;
+
+  const hourlyHtml = hoursToday.length ? `
+    <section class="card">
+      <div class="card-head"><h2>Heure par heure</h2>
+        <div class="legend"><span><i style="background:var(--sun)"></i>Température</span><span><i style="background:var(--rain);opacity:.55"></i>Risque de pluie</span></div></div>
+      <div class="chart-wrap">${hourlySvg(hoursToday,hour)}</div>
+    </section>` : "";
+
+  const all = days.flatMap(d=>[d.min,d.max]).filter(v=>typeof v==="number");
+  const lo = Math.min(...all)-1, hi = Math.max(...all)+1;
+  const pct = v => ((v-lo)/(hi-lo))*100;
+  const daysHtml = `
+    <section class="card">
+      <div class="card-head"><h2>Les ${days.length} prochains jours</h2><span class="eyebrow">min · max · pluie</span></div>
+      <ul class="days">${days.map((d,i)=>{const f=frDate(d.date);const dry=!(d.mm>0);return `
+        <li class="day${d.date===today?" today":""}">
+          <div class="d"><b>${d.date===today?"Aujourd’hui":f.wd}</b><span>${f.dm}</span></div>
+          ${icon(kind(d.sky),false)}
+          <div class="bar-row"><span class="lo">${d.min}°</span><div class="track"><div class="fill" style="left:${pct(d.min)}%;width:${Math.max(2,pct(d.max)-pct(d.min))}%"></div></div><span class="hi">${d.max}°</span></div>
+          <div class="rain${dry?" dry":""}">${dry?`${d.rain}%`:`${String(d.mm).replace(".",",")} mm`}</div>
+          <div class="sub">${esc(d.sky)} · vent ${d.wind} km/h · humidité ${d.hum} %</div>
+        </li>`}).join("")}</ul>
+    </section>`;
+
+  $("#app").innerHTML = nowHtml + hourlyHtml + daysHtml;
+}
+
+function hourlySvg(hs,curH){
+  const W=760,H=200,L=34,R=12,T=26,B=30, pw=W-L-R, ph=H-T-B;
+  const ts=hs.map(h=>h.t), tmin=Math.floor(Math.min(...ts))-1, tmax=Math.ceil(Math.max(...ts))+1;
+  const x=i=>L+(i+.5)*pw/hs.length, y=t=>T+ph-(t-tmin)/(tmax-tmin)*ph;
+  const bw=pw/hs.length*.6;
+  let s=`<svg class="hourly" viewBox="0 0 ${W} ${H}" role="img" aria-label="Température et risque de pluie heure par heure">`;
+  for(let t=tmin;t<=tmax;t++){ if((t-tmin)%2) continue;
+    s+=`<line x1="${L}" x2="${W-R}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)" stroke-width="1"/><text x="${L-6}" y="${y(t)+4}" text-anchor="end">${t}°</text>`;}
+  hs.forEach((h,i)=>{const bh=(h.r/100)*ph; s+=`<rect x="${x(i)-bw/2}" y="${T+ph-bh}" width="${bw}" height="${bh}" fill="var(--rain)" fill-opacity=".35" rx="2"/>`;});
+  const ci=hs.findIndex(h=>h.h===curH);
+  if(ci>=0) s+=`<rect x="${x(ci)-pw/hs.length/2}" y="${T-4}" width="${pw/hs.length}" height="${ph+4}" fill="var(--sun)" fill-opacity=".12"/>`;
+  const pts=hs.map((h,i)=>`${x(i)},${y(h.t)}`).join(" ");
+  s+=`<polygon points="${x(0)},${T+ph} ${pts} ${x(hs.length-1)},${T+ph}" fill="var(--sun)" fill-opacity=".12"/>`;
+  s+=`<polyline points="${pts}" fill="none" stroke="var(--sun)" stroke-width="2.5" stroke-linejoin="round"/>`;
+  hs.forEach((h,i)=>{
+    if(h.h%3===0) s+=`<text x="${x(i)}" y="${H-10}" text-anchor="middle">${String(h.h).padStart(2,"0")}h</text>`;
+    if(h.h%3===0 || i===ci) s+=`<text class="tl" x="${x(i)}" y="${y(h.t)-9}" text-anchor="middle">${h.t}°</text>`;
+    if(i===ci) s+=`<circle cx="${x(i)}" cy="${y(h.t)}" r="4.5" fill="var(--sun)" stroke="var(--surface)" stroke-width="2"/>`;
+  });
+  return s+`</svg>`;
+}
+
+const WMO={0:"Ciel dégagé",1:"Plutôt ensoleillé",2:"Partiellement nuageux",3:"Couvert",45:"Brouillard",48:"Brouillard givrant",
+51:"Bruine légère",53:"Bruine",55:"Bruine dense",61:"Pluie faible",63:"Pluie modérée",65:"Pluie forte",66:"Pluie verglaçante",67:"Pluie verglaçante forte",
+71:"Neige faible",73:"Neige",75:"Neige forte",80:"Averses légères",81:"Averses",82:"Averses violentes",95:"Orage",96:"Orage avec grêle",99:"Orage avec forte grêle"};
+const sk=c=>WMO[c]||"—";
+async function load(){
+  const p=new URLSearchParams({latitude:"34.02",longitude:"-6.83",timezone:TZ,forecast_days:"14",
+    hourly:"temperature_2m,apparent_temperature,precipitation_probability,wind_speed_10m,weather_code,relative_humidity_2m",
+    daily:"weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,uv_index_max,sunrise,sunset"});
+  try{
+    const r=await fetch("https://api.open-meteo.com/v1/forecast?"+p);
+    if(!r.ok) throw new Error(r.status);
+    const j=await r.json(), H=j.hourly, D=j.daily, R=Math.round;
+    const {date:today}=nowParts();
+    const hours=[], humByDay={};
+    H.time.forEach((t,i)=>{const [d,hh]=t.split("T");(humByDay[d]=humByDay[d]||[]).push(H.relative_humidity_2m[i]);
+      if(d===today) hours.push({h:parseInt(hh,10),t:R(H.temperature_2m[i]),f:R(H.apparent_temperature[i]),r:H.precipitation_probability[i]??0,w:R(H.wind_speed_10m[i]),sky:sk(H.weather_code[i])});});
+    const days=D.time.map((d,i)=>{const hs=humByDay[d]||[];return {date:d,sky:sk(D.weather_code[i]),max:R(D.temperature_2m_max[i]),min:R(D.temperature_2m_min[i]),
+      mm:Math.round((D.precipitation_sum[i]||0)*10)/10,rain:D.precipitation_probability_max[i]??0,wind:R(D.wind_speed_10m_max[i]),
+      hum:hs.length?R(hs.reduce((a,b)=>a+b,0)/hs.length):"–",uv:Math.round(D.uv_index_max[i]??0),sunrise:D.sunrise[i].slice(11),sunset:D.sunset[i].slice(11)}});
+    render({updatedAt:new Date().toISOString(),source:"Open‑Meteo",sourceUrl:"https://open-meteo.com/",hoursDate:today,hours,days});
+  }catch(e){ $("#stamp").textContent="Impossible de joindre le service météo. Vérifiez votre connexion puis rechargez la page."; $("#stamp").classList.add("stale"); }
+}
+load();
+setInterval(load,30*60*1000);
+</script>
+</body>
+</html>
